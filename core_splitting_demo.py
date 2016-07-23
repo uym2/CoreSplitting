@@ -18,9 +18,9 @@ h,w = dither_img.shape
 util.find_all_splits(dither_img,objs,0,w,0,h)
 objs = util.remove_tiny_objs(objs)
 
-orgList = util.organize_obj(objs,w,h)
+orgList = util.organize_obj(objs)
 
-util.show_objs_by_row(orgList,image)
+util.showSteps_objs_byRow(orgList,image)
 
 # output
 if args["output"]:
@@ -28,7 +28,3 @@ if args["output"]:
 else:
 	filename = "splitted.jpeg"
 cv2.imwrite(filename,image)
-
-# illustration
-cv2.imshow("split lines",image)
-cv2.waitKey(0)

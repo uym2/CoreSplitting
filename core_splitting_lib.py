@@ -150,7 +150,7 @@ def remove_tiny_objs(objList):
 def find_centers(objList):
     return [[(obj[1]+obj[0])/2,(obj[3]+obj[2])/2] for obj in objList]
 
-def organize_obj(objList,imgW,imgH):
+def organize_obj(objList):
     # sort objects by y-coordinate and x-coordinate
     # after sorting, the objects can be read from left-> right and top->bottom
 
@@ -193,7 +193,25 @@ def show_objs_by_row(orgList,image):
         		y_end = obj[3]
         		cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
         i = i+1
-   
+    # illustration
+    cv2.imshow("split lines",image)
+    cv2.waitKey(0)
+ 
+def showSteps_objs_byRow(orgList,image):
+    colors = [(255,0,0),(0,255,0),(0,0,255)]
+    i = 0
+    for row in orgList:
+        for obj in row:
+            x_start = obj[0]
+            x_end = obj[1]
+            y_start = obj[2]
+            y_end = obj[3]
+            cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
+            # illustration
+            cv2.imshow("split lines",image)
+            cv2.waitKey(0)
+        i = i+1
+  
 def show_objs(objList,image):
     for obj in objList:
         x_start = obj[0]
