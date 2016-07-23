@@ -1,4 +1,4 @@
-import function_utility as support
+import function_utility as util
 import cv2
 import argparse
 
@@ -11,11 +11,14 @@ ap.add_argument("-o", "--output", help = "Output image")
 args = vars(ap.parse_args())
 
 image = cv2.imread(args["image"])
-dither_img = support.naive_dithering(image)
+dither_img = util.naive_dithering(image)
 
 objs = []
 h,w = dither_img.shape
-support.find_all_splits(dither_img,objs,0,w,0,h)
+util.find_all_splits(dither_img,objs,0,w,0,h)
+objs = util.remove_tiny_objs(objs)
+
+print len(objs)
 
 for i in range(len(objs)):
 		a_obj = objs[i]

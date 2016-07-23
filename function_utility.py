@@ -5,8 +5,10 @@ import cv2
 DITHER_THRES = 200
 MIN_INTENSITY = 0
 MAX_INTENSITY = 255
-NOISE_TORL_RATIO = 0.01 # noise torlerance ration: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
+NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
+MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
+
 
 def naive_dithering(img):
 	# input: an image
@@ -112,3 +114,35 @@ def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end):
 		# recursive calls
 		find_all_splits(dither_img[:,:x1],objs,x_start,x_start+x1,y_start,y_end)
 		find_all_splits(dither_img[:,x2:],objs,x_start+x2+1,x_end,y_start,y_end)
+
+
+# each object is located by a rectangular bounding box
+# a rectangle is located by 4 coordinates: x_start, x_end, y_start, y_end
+# therefore, each element in the objList passed to this function has the form 
+# [x_start, x_end, y_start, y_end]
+def typical_bounding_area(objList,method='avg'):
+    # assume a majority of objects in objList are similar in size
+    # this function return the area of a "typical" object in the list
+    # method: 
+    #       avg: default option; take the average to represent the "typical"
+    #       med: take the median to represent the "typical"
+    # intuitively, taking the median as the typical is a better method
+    # however, computing median in a list takes more computing time
+    # therefore, average was chosen as the default method
+    if method == 'med':
+        tpc_width = np.median([abs(obj[1]-obj[0]) for obj in objList])
+        tpc_height = np.median([abs(obj[3]-obj[2]) for obj in objList])
+        return tpc_width*tpc_height
+    else:
+        tpc_width = np.mean([abs(obj[1]-obj[0]) for obj in objList])
+        tpc_height = np.mean([abs(obj[3]-obj[2]) for obj in objList])
+        return tpc_width*tpc_height
+        
+def obj_area(obj):
+    return abs((obj[3]-obj[2])*(obj[1]-obj[0]))
+        
+def remove_tiny_objs(objList):
+    # the splitting algorithm produces some tiny pieces that are not real objects
+    # this function remove those from the objList
+    tpc_area = typical_bounding_area(objList)
+    return [obj for obj in objList if obj_area(obj)/tpc_area >= MIN_TO_TPC]
