@@ -8,7 +8,7 @@ MAX_INTENSITY = 255
 NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
-
+OFFSET_RATIO = 0.5 # the maximum offset of objects in a column/row (relative to object widh/height)
 
 def naive_dithering(img):
 	# input: an image
@@ -146,3 +146,58 @@ def remove_tiny_objs(objList):
     # this function remove those from the objList
     tpc_area = typical_bounding_area(objList)
     return [obj for obj in objList if obj_area(obj)/tpc_area >= MIN_TO_TPC]
+ 
+def find_centers(objList):
+    return [[(obj[1]+obj[0])/2,(obj[3]+obj[2])/2] for obj in objList]
+
+def organize_obj(objList,imgW,imgH):
+    # sort objects by y-coordinate and x-coordinate
+    # after sorting, the objects can be read from left-> right and top->bottom
+
+    # find object's center    
+    c = find_centers(objList)
+    THRES = OFFSET_RATIO*np.mean([abs(obj[3]-obj[2]) for obj in objList])
+    #THRES = OFFSET_RATIO*imgH
+
+    # sort by vertical dimension
+    sIdx = np.argsort([ctr[1] for ctr in c])
+    
+    # after sorting, objects in the same row are clusterred together
+    # traverse the sorted list to split the clusters (in this stage: cluster = row)
+    # then sort objects in each cluster by column
+    organized_list = []
+    i = 0    
+    for j in range(1,len(sIdx)):
+        if abs(c[sIdx[j]][1]-c[sIdx[j-1]][1]) > THRES:
+            # sort by x-coordinate for objects within a row
+            sIdx_row = sIdx[i:j]
+            sortRow_idx = np.argsort([c[k][0] for k in sIdx_row])
+            organized_list.append([objList[sIdx_row[k]] for k in sortRow_idx])
+            i = j
+            
+    # add the last row
+    sIdx_row = sIdx[i:]
+    sortRow_idx = np.argsort([c[k][0] for k in sIdx_row])
+    organized_list.append([objList[sIdx_row[k]] for k in sortRow_idx])
+ 
+    return organized_list
+            
+def show_objs_by_row(orgList,image):
+    colors = [(255,0,0),(0,255,0),(0,0,255)]
+    i = 0
+    for row in orgList:
+        for obj in row:
+        		x_start = obj[0]
+        		x_end = obj[1]
+        		y_start = obj[2]
+        		y_end = obj[3]
+        		cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
+        i = i+1
+   
+def show_objs(objList,image):
+    for obj in objList:
+        x_start = obj[0]
+        x_end = obj[1]
+        y_start = obj[2]
+        y_end = obj[3]
+        cv2.rectangle(image,(x_start,y_start),(x_end,y_end),(255,0,0),2)

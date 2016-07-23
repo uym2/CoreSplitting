@@ -2,7 +2,7 @@
 import numpy as np
 import argparse
 import cv2
-import function_utility as util
+import core_splitting_lib as util
 
 def find_splits(dither_img,lines,x_start,x_end,y_start,y_end):
 	h,w = dither_img.shape

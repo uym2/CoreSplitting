@@ -1,4 +1,4 @@
-import function_utility as util
+import core_splitting_lib as util
 import cv2
 import argparse
 
@@ -18,15 +18,9 @@ h,w = dither_img.shape
 util.find_all_splits(dither_img,objs,0,w,0,h)
 objs = util.remove_tiny_objs(objs)
 
-print len(objs)
+orgList = util.organize_obj(objs,w,h)
 
-for i in range(len(objs)):
-		a_obj = objs[i]
-		x_start = a_obj[0]
-		x_end = a_obj[1]
-		y_start = a_obj[2]
-		y_end = a_obj[3]
-		cv2.rectangle(image,(x_start,y_start),(x_end,y_end),(0,255,0),2)
+util.show_objs_by_row(orgList,image)
 
 # output
 if args["output"]:
