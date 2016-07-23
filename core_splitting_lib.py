@@ -209,7 +209,7 @@ def showSteps_objs_byRow(orgList,image):
             cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
             # illustration
             cv2.imshow("split lines",image)
-            cv2.waitKey(0)
+            cv2.waitKey(500)
         i = i+1
   
 def show_objs(objList,image):
