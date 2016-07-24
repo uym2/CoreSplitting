@@ -219,3 +219,5 @@ def show_objs(objList,image):
         y_start = obj[2]
         y_end = obj[3]
         cv2.rectangle(image,(x_start,y_start),(x_end,y_end),(255,0,0),2)
+    cv2.imshow("show",image)
+    cv2.waitKey(0)
