@@ -5,10 +5,10 @@ import cv2
 DITHER_THRES = 200
 MIN_INTENSITY = 0
 MAX_INTENSITY = 255
-NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
+NOISE_TORL_RATIO = 0.05 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
-OFFSET_RATIO = 0.3 # the maximum offset of objects in a column/row (relative to object widh/height)
+OFFSET_RATIO = 0.5 # the maximum offset of objects in a column/row (relative to object widh/height)
 
 def naive_dithering(img):
 	# input: an image
@@ -25,6 +25,14 @@ def naive_dithering(img):
 			else:
 				output_img[i,j] = MAX_INTENSITY
 	return output_img			
+
+def otsu_dithering(img,inv=True):
+    gray_img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    if inv:
+        thr,binary_img = cv2.threshold(gray_img,0,255,cv2.THRESH_BINARY_INV|cv2.THRESH_OTSU)
+    else:
+        thr,binary_img = cv2.threshold(gray_img,0,255,cv2.THRESH_BINARY|cv2.THRESH_OTSU)
+    return binary_img
 
 def is_split_line_of(dither_img,line_type,intercept):
 	if line_type == 'H':
@@ -169,7 +177,7 @@ def group2rowNsort(objList):
     rowList = []
     i = 0    
     for j in range(1,len(sIdx)):
-        if abs(c[sIdx[j]][1]-c[sIdx[j-1]][1]) > THRES:
+        if objList[sIdx[j-1]][3]-objList[sIdx[j]][2] < THRES:
             # sort by x-coordinate for objects within a row
             sIdx_row = sIdx[i:j]
             sortRow_idx = np.argsort([c[k][0] for k in sIdx_row])

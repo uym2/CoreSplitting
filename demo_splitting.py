@@ -11,7 +11,9 @@ ap.add_argument("-o", "--output", help = "Output image")
 args = vars(ap.parse_args())
 
 image = cv2.imread(args["image"])
-dither_img = util.naive_dithering(image)
+dither_img = util.otsu_dithering(image,False)
+cv2.imshow("Otsu dither", dither_img)
+cv2.waitKey(0)
 
 objs = []
 h,w = dither_img.shape
