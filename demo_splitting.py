@@ -19,9 +19,9 @@ util.find_all_splits(dither_img,objs,0,w,0,h)
 objs = util.remove_tiny_objs(objs)
 
 rowList = util.group2rowNsort(objs)
-#util.column_alignment(rowList)
+util.column_alignment(rowList)
 
-util.show_objs_by_row(rowList,image)
+util.show_objs_by_column(rowList,image)
 
 # output
 if args["output"]:

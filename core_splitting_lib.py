@@ -186,14 +186,22 @@ def group2rowNsort(objList):
 def column_alignment(rowList):
     j = 0
     while j< max([len(row) for row in rowList]):
-        col = [row[j] for row in rowList]
-        THRES = np.median([abs(obj[1]-obj[0]) for obj in col])
-        col_pos = np.min([(obj[1]+obj[0])/2 for obj in col])
+        col = []
+        for row in rowList:
+            if j < len(row):
+                col.append(row[j])
+            else:
+                col.append(None)
+        #col = [row[j] for row in rowList if j < len(row)]
+        THRES = np.median([abs(obj[1]-obj[0]) for obj in col if obj])
+        col_pos = np.min([(obj[1]+obj[0])/2 for obj in col if obj])
         i = 0
         for obj in col:
-            if abs((obj[1]+obj[0])/2-col_pos) > THRES:
+            if not obj:
+                # reach the end of this row, add virtual objs from now on
+                rowList[i].append(None)
+            elif abs((obj[1]+obj[0])/2-col_pos) > THRES:
                 # add a virtual object
-                print i, j
                 rowList[i].insert(j,None)
             i = i+1
         j = j+1
@@ -203,11 +211,12 @@ def show_objs_by_row(orgList,image):
     i = 0
     for row in orgList:
         for obj in row:
-        		x_start = obj[0]
-        		x_end = obj[1]
-        		y_start = obj[2]
-        		y_end = obj[3]
-        		cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
+             if obj:
+                 x_start = obj[0]
+                 x_end = obj[1]
+                 y_start = obj[2]
+                 y_end = obj[3]
+                 cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
         i = i+1
     # illustration
     cv2.imshow("split lines",image)
@@ -215,16 +224,25 @@ def show_objs_by_row(orgList,image):
     
 def show_objs_by_column(alignedList,image):
     colors = [(255,0,0),(0,255,0),(0,0,255)]
-    i = 0
+    virtual_color = (0,255,255)
+    c = 0
     
-    for row in alignedList:
-        for obj in row:
-            x_start = obj[0]
-            x_end = obj[1]
-            y_start = obj[2]
-            y_end = obj[3]
-            cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
-            i = i+1
+    for j in range(len(alignedList[0])):
+        for i in range(len(alignedList)):
+            obj = alignedList[i][j]
+            if obj:
+                x_start = obj[0]
+                x_end = obj[1]
+                y_start = obj[2]
+                y_end = obj[3]
+                cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[c%len(colors)],2)
+            else:
+                x_start = int(np.median([r[j][0] for r in alignedList if r[j]]))
+                x_end = int(np.median([r[j][1] for r in alignedList if r[j]]))
+                y_start = int(np.median([oj[2] for oj in alignedList[i] if oj]))
+                y_end = int(np.median([oj[3] for oj in alignedList[i] if oj]))
+                cv2.rectangle(image,(x_start,y_start),(x_end,y_end),virtual_color,2)
+        c = c+1
     # illustration
     cv2.imshow("split lines",image)
     cv2.waitKey(0)
@@ -234,22 +252,24 @@ def showSteps_objs_byRow(orgList,image):
     i = 0
     for row in orgList:
         for obj in row:
-            x_start = obj[0]
-            x_end = obj[1]
-            y_start = obj[2]
-            y_end = obj[3]
-            cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
-            # illustration
-            cv2.imshow("split lines",image)
-            cv2.waitKey(500)
+            if obj:
+                x_start = obj[0]
+                x_end = obj[1]
+                y_start = obj[2]
+                y_end = obj[3]
+                cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
+                # illustration
+                cv2.imshow("split lines",image)
+                cv2.waitKey(500)
         i = i+1
   
 def show_objs(objList,image):
     for obj in objList:
-        x_start = obj[0]
-        x_end = obj[1]
-        y_start = obj[2]
-        y_end = obj[3]
-        cv2.rectangle(image,(x_start,y_start),(x_end,y_end),(255,0,0),2)
+        if obj:
+            x_start = obj[0]
+            x_end = obj[1]
+            y_start = obj[2]
+            y_end = obj[3]
+            cv2.rectangle(image,(x_start,y_start),(x_end,y_end),(255,0,0),2)
     cv2.imshow("show",image)
     cv2.waitKey(0)
