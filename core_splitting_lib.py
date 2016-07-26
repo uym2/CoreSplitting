@@ -210,16 +210,23 @@ def column_alignment(rowList):
             else:
                 col.append(None)
         #col = [row[j] for row in rowList if j < len(row)]
-        THRES = np.median([abs(obj[1]-obj[0]) for obj in col if obj])
-        col_pos = np.min([(obj[1]+obj[0])/2 for obj in col if obj])
+        #THRES = np.max([abs(obj[1]-obj[0]) for obj in col if obj])
+        col_leftLimit = np.min([max(obj[0],obj[1]) for obj in col if obj])
+
         i = 0
         for obj in col:
             if not obj:
                 # reach the end of this row, add virtual objs from now on
                 rowList[i].append(None)
-            elif abs((obj[1]+obj[0])/2-col_pos) > THRES:
+            else:
+                if obj[1]-col_leftLimit == 0:
+                    print i,j
+                if col_leftLimit-min(obj[0],obj[1]) < 0:
+                #print i,j
+                #print col_leftLimit, obj[0]
                 # add a virtual object
-                rowList[i].insert(j,None)
+                    rowList[i].insert(j,None)
+            
             i = i+1
         j = j+1
             
