@@ -12,8 +12,8 @@ args = vars(ap.parse_args())
 
 image = cv2.imread(args["image"])
 dither_img = util.naive_dithering(image)
-cv2.imshow("Dither", dither_img)
-cv2.waitKey(0)
+#cv2.imshow("Dither", dither_img)
+#cv2.waitKey(0)
 
 objs = []
 h,w = dither_img.shape

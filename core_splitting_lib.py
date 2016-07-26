@@ -8,7 +8,7 @@ MAX_INTENSITY = 255
 NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
-OFFSET_RATIO = 0.5 # the maximum offset of objects in a column/row (relative to object widh/height)
+OFFSET_RATIO = 0.6 # the maximum offset of objects in a column/row (relative to object widh/height)
 
 def naive_dithering(img):
 	# input: an image
@@ -165,19 +165,31 @@ def group2rowNsort(objList):
 
     # find object's center    
     c = find_centers(objList)
-    THRES = OFFSET_RATIO*np.median([abs(obj[3]-obj[2]) for obj in objList])
+    #THRES = OFFSET_RATIO*np.median([abs(obj[3]-obj[2]) for obj in objList])
     #THRES = OFFSET_RATIO*imgH
 
     # sort by vertical dimension
-    sIdx = np.argsort([ctr[1] for ctr in c])
-    
+    #sIdx = np.argsort([ctr[1] for ctr in c])
+    sIdx = np.argsort([obj[3] for obj in objList])
     # after sorting, objects in the same row are clusterred together
     # traverse the sorted list to split the clusters (in this stage: cluster means row)
     # then sort objects in each cluster by column
     rowList = []
     i = 0    
     for j in range(1,len(sIdx)):
-        if objList[sIdx[j-1]][3]-objList[sIdx[j]][2] < THRES:
+        this_obj = objList[sIdx[j]]
+        neighbor_obj = objList[sIdx[i]]
+        d_min = abs(this_obj[0]-neighbor_obj[0])
+        
+        # find closest neighbor
+        for k in range(i+1,j):
+            d = abs(this_obj[0]-objList[sIdx[k]][0])
+            if d<d_min:
+                d_min = d
+                neighbor_obj = objList[sIdx[k]]
+        
+        # check if this_obj belong to current row        
+        if neighbor_obj[3]-this_obj[2] < 0:
             # sort by x-coordinate for objects within a row
             sIdx_row = sIdx[i:j]
             sortRow_idx = np.argsort([c[k][0] for k in sIdx_row])
