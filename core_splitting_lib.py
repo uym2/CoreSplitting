@@ -5,7 +5,7 @@ import cv2
 DITHER_THRES = 200
 MIN_INTENSITY = 0
 MAX_INTENSITY = 255
-NOISE_TORL_RATIO = 0.05 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
+NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
 OFFSET_RATIO = 0.5 # the maximum offset of objects in a column/row (relative to object widh/height)
