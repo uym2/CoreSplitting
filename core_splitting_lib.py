@@ -9,6 +9,7 @@ NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixe
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
 
+
 def naive_dithering(img):
 	# input: an image
 	# output: a black-white image reflecting the same content
@@ -158,47 +159,60 @@ def remove_tiny_objs(objList):
 def find_centers(objList):
     return [[(obj[1]+obj[0])/2,(obj[3]+obj[2])/2] for obj in objList]
 
-def group2rowNsort(objList):
-    # sort objects by y-coordinate and x-coordinate
-    # after sorting, the objects can be read from left-> right and top->bottom
-
-    # find object's center    
+def groupInOneDim(objList,dim):
+    # sort objects by y-coordinate (if group by row) or x-coordinate (if group by column)
+    # after sorting, the objects can be read from left-> right or top->bottom
     
-    # sort by vertical dimension
-    #sIdx = np.argsort([ctr[1] for ctr in c])
-    sIdx = np.argsort([obj[3] for obj in objList])
-    
-    # after sorting, objects in the same row are clusterred together
-    # traverse the sorted list to split the clusters (in this stage: cluster means row)
-    # then sort objects in each cluster by column
-    rowList = []
+    # sort in one dimension
+    if dim == 'row':
+        sIdx = np.argsort([obj[3] for obj in objList])
+    else:
+        sIdx = np.argsort([obj[1] for obj in objList])
+        
+    # after sorting, objects in the same row (column) are clusterred together
+    # traverse the sorted list to split the clusters
+    # then sort objects in each cluster
+    dimList = []
     i = 0    
     for j in range(1,len(sIdx)):
         this_obj = objList[sIdx[j]]
         neighbor_obj = objList[sIdx[i]]
-        d_min = abs(this_obj[0]-neighbor_obj[0])
+        if dim == 'row':
+            d_min = abs(this_obj[0]-neighbor_obj[0])
+        else:
+            d_min = abs(this_obj[2]-neighbor_obj[2])
         
         # find the closest neighbor
         for k in range(i+1,j):
-            d = abs(this_obj[0]-objList[sIdx[k]][0])
+            if dim == 'row':
+                d = abs(this_obj[0]-objList[sIdx[k]][0])
+            else:
+                d = abs(this_obj[2]-objList[sIdx[k]][2])
             if d<d_min:
                 d_min = d
                 neighbor_obj = objList[sIdx[k]]
         
-        # check if this_obj belong to current row        
-        if neighbor_obj[3]-this_obj[2] < 0:
-            # sort by x-coordinate for objects within a row
-            sIdx_row = sIdx[i:j]
-            sortRow_idx = np.argsort([objList[k][0] for k in sIdx_row])
-            rowList.append([objList[sIdx_row[k]] for k in sortRow_idx])
+        # check if this_obj belong to current row/column        
+        if ( (dim=='row' and neighbor_obj[3]-this_obj[2] < 7) or
+             (dim=='col' and neighbor_obj[1]-this_obj[0] <7 ) ):
+            # sort by x-coordinate for objects within a row/column
+            sIdx_dim = sIdx[i:j]
+            if dim =='row':
+                sortDim_idx = np.argsort([objList[k][0] for k in sIdx_dim])
+            else:
+                sortDim_idx = np.argsort([objList[k][2] for k in sIdx_dim])
+            dimList.append([sIdx_dim[k] for k in sortDim_idx])
             i = j
             
-    # add the last row
-    sIdx_row = sIdx[i:]
-    sortRow_idx = np.argsort([objList[k][0] for k in sIdx_row])
-    rowList.append([objList[sIdx_row[k]] for k in sortRow_idx])
+    # add the last row/column
+    sIdx_dim = sIdx[i:]
+    if dim == 'row':
+        sortDim_idx = np.argsort([objList[k][0] for k in sIdx_dim])
+    else:
+        sortDim_idx = np.argsort([objList[k][2] for k in sIdx_dim])
+    dimList.append([sIdx_dim[k] for k in sortDim_idx])     
  
-    return rowList
+    return dimList
 
 def column_alignment(rowList):
     j = 0
@@ -229,23 +243,66 @@ def column_alignment(rowList):
             
             i = i+1
         j = j+1
+   
+def infer_missing_idx(rowIdx,colIdx):
+    for i in range(len(rowIdx)):
+        for j in range(len(colIdx)):
+            if len(rowIdx[i])<=j:
+                #print i,j
+                rowIdx[i].append(None)
+                colIdx[j].insert(i,None)
+            elif len(colIdx[j])<=i:
+                #print i,j
+                colIdx[j].append(None)
+                rowIdx[i].insert(j,None)
+            elif rowIdx[i][j] != colIdx[j][i]:
+                #print i,j
+                rowIdx[i].insert(j,None)
+                colIdx[j].insert(i,None)
+    return np.array(rowIdx)
             
-def show_objs_by_row(orgList,image):
+def show_objs_by_dim(idxList,objList,image):
     colors = [(255,0,0),(0,255,0),(0,0,255)]
     i = 0
-    for row in orgList:
-        for obj in row:
-             if obj:
+    for cluster in idxList:
+        for idx in cluster:
+                 obj = objList[idx]
                  x_start = obj[0]
                  x_end = obj[1]
                  y_start = obj[2]
                  y_end = obj[3]
                  cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
+                 # illustration
+                 cv2.imshow("split lines",image)
+                 cv2.waitKey(0)
         i = i+1
-    # illustration
-    cv2.imshow("split lines",image)
-    cv2.waitKey(0)
+
+def show_objs_by_matrix(idxMat,objList,image):
+    real_color = [255,0,0]
+    virtual_color = [0,0,255]
     
+    h,w = idxMat.shape
+    for i in range(h):
+        for j in range(w):
+            if not idxMat[i,j] is None:
+                obj = objList[idxMat[i,j]]
+                x_start = obj[0]
+                x_end = obj[1]
+                y_start = obj[2]
+                y_end = obj[3]
+                cv2.rectangle(image,(x_start,y_start),(x_end,y_end),real_color,2)
+            else:
+                rowObjs = [objList[k] for k in idxMat[i,:] if k]
+                colObjs = [objList[k] for k in idxMat[:,j] if k]
+                x_start = int(np.mean([obj[0] for obj in colObjs]))
+                x_end = int(np.mean([obj[1] for obj in colObjs]))
+                y_start = int(np.mean([obj[2] for obj in rowObjs]))
+                y_end = int(np.mean([obj[3] for obj in rowObjs]))
+                cv2.rectangle(image,(x_start,y_start),(x_end,y_end),virtual_color,2)
+        
+    cv2.imshow("infer objs",image)
+    cv2.waitKey(0)
+
 def show_objs_by_column(alignedList,image):
     colors = [(255,0,0),(0,255,0),(0,0,255)]
     virtual_color = (0,255,255)
