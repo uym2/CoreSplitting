@@ -10,20 +10,14 @@ NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
 
 
-def naive_dithering(img):
+def naive_dithering(img,inv=True):
 	# input: an image
 	# output: a black-white image reflecting the same content
 
 	# convert to grayscale
 	output_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-	h,w = output_img.shape
-	
-	for i in range(h):
-		for j in range(w):
-			if (output_img[i,j]>DITHER_THRES):
-				output_img[i,j] = MIN_INTENSITY
-			else:
-				output_img[i,j] = MAX_INTENSITY
+	logical_idx = (output_img <= DITHER_THRES) if inv else (output_img > DITHER_THRES)
+	output_img = MAX_INTENSITY*logical_idx
 	return output_img			
 
 def otsu_dithering(img,inv=True):
