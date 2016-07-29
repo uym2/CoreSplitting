@@ -20,8 +20,8 @@ h,w = dither_img.shape
 util.find_all_splits(dither_img,objs,0,w,0,h)
 objs = util.remove_tiny_objs(objs)
 
-rowIdx = util.groupInOneDim(objs,'row')
-colIdx = util.groupInOneDim(objs,'col')
+rowIdx = util.group2rowNsort(objs)
+colIdx = util.group2colNsort(objs)
 
 #print(colIdx[0][0])
 #print(colIdx[0][0])
