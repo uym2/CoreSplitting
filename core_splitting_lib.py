@@ -153,61 +153,105 @@ def remove_tiny_objs(objList):
 def find_centers(objList):
     return [[(obj[1]+obj[0])/2,(obj[3]+obj[2])/2] for obj in objList]
 
-def groupInOneDim(objList,dim):
+def clusterInOneDim(objList,dim):
     # sort objects by y-coordinate (if group by row) or x-coordinate (if group by column)
     # after sorting, the objects can be read from left-> right or top->bottom
     
     # sort in one dimension
+    
     if dim == 'row':
-        sIdx = np.argsort([obj[3] for obj in objList])
+        start = 2
+        end = 3
+        start_ops = 0
     else:
-        sIdx = np.argsort([obj[1] for obj in objList])
+        start = 0
+        end = 1
+        start_ops = 2
+    
+    sIdx = np.argsort([obj[end] for obj in objList])
         
     # after sorting, objects in the same row (column) are clusterred together
     # traverse the sorted list to split the clusters
     # then sort objects in each cluster
-    dimList = []
+    clusters = []
     i = 0    
     for j in range(1,len(sIdx)):
         this_obj = objList[sIdx[j]]
         neighbor_obj = objList[sIdx[i]]
-        if dim == 'row':
-            d_min = abs(this_obj[0]-neighbor_obj[0])
-        else:
-            d_min = abs(this_obj[2]-neighbor_obj[2])
+        d_min = abs(this_obj[start_ops]-neighbor_obj[start_ops])
         
         # find the closest neighbor
         for k in range(i+1,j):
-            if dim == 'row':
-                d = abs(this_obj[0]-objList[sIdx[k]][0])
-            else:
-                d = abs(this_obj[2]-objList[sIdx[k]][2])
+            d = abs(this_obj[start_ops] - objList[sIdx[k]][start_ops])
             if d<d_min:
                 d_min = d
                 neighbor_obj = objList[sIdx[k]]
         
-        # check if this_obj belong to current row/column        
-        if ( (dim=='row' and neighbor_obj[3]-this_obj[2] < 7) or
-             (dim=='col' and neighbor_obj[1]-this_obj[0] <7 ) ):
-            # sort by x-coordinate for objects within a row/column
-            sIdx_dim = sIdx[i:j]
-            if dim =='row':
-                sortDim_idx = np.argsort([objList[k][0] for k in sIdx_dim])
-            else:
-                sortDim_idx = np.argsort([objList[k][2] for k in sIdx_dim])
-            dimList.append([sIdx_dim[k] for k in sortDim_idx])
+        # check if this_obj belong to current row/column
+        if (neighbor_obj[end]-this_obj[start]<0):        
+            #add the new cluster and split 
+            clusters.append([obj_idx for obj_idx in sIdx[i:j]])
             i = j
             
     # add the last row/column
-    sIdx_dim = sIdx[i:]
-    if dim == 'row':
-        sortDim_idx = np.argsort([objList[k][0] for k in sIdx_dim])
-    else:
-        sortDim_idx = np.argsort([objList[k][2] for k in sIdx_dim])
-    dimList.append([sIdx_dim[k] for k in sortDim_idx])     
+    clusters.append([obj_idx for obj_idx in sIdx[i:]])     
  
-    return dimList
+    return clusters
+    
+def group2rowNsort(objList):
+    clusters = clusterInOneDim(objList,'row')
+    adjacent_exchange(clusters,objList,'row')
+    rowIdx = []
+    for cl in clusters:
+        cl_sort = np.argsort([objList[idx][0] for idx in cl])
+        rowIdx.append([cl[idx] for idx in cl_sort])
+    return rowIdx
 
+def group2colNsort(objList):
+    clusters = clusterInOneDim(objList,'col')
+    adjacent_exchange(clusters,objList,'col')
+    colIdx = []
+    for cl in clusters:
+        cl_sort = np.argsort([objList[idx][2] for idx in cl])
+        colIdx.append([cl[idx] for idx in cl_sort])
+    return colIdx
+
+def adjacent_exchange(clusters,objList,dim):
+    if dim == 'row':
+        start = 2
+        end = 3
+    else:
+        start = 0
+        end = 1
+
+    curr_clst_pos = np.median([(objList[idx][start]+objList[idx][end])/2 for idx in clusters[0]])        
+    for i in range(1,len(clusters)):
+        # Note: clusters[i-1] is the "current"
+        #       clusters[i] is the "adjacent"
+        adj_clst_pos = np.median([(objList[idx][start]+objList[idx][end])/2 for idx in clusters[i]])        
+        
+        for idx in clusters[i-1]:
+            # check each obj in current cluster
+            pos = (objList[idx][start]+objList[idx][end])/2
+            d1 = abs(pos-curr_clst_pos)
+            d2 = abs(pos-adj_clst_pos)
+            if d1 > d2:
+                # move to the adjacent cluster
+                clusters[i-1].remove(idx)
+                clusters[i].append(idx)
+                
+        for idx in clusters[i]:
+            # check each obj in adjacent cluster
+            pos = (objList[idx][start]+objList[idx][end])/2
+            d1 = abs(pos-curr_clst_pos)
+            d2 = abs(pos-adj_clst_pos)
+            if d1 < d2:
+                # move to the current cluster
+                clusters[i].remove(idx)
+                clusters[i-1].append(idx)                
+                
+        curr_clst_pos = adj_clst_pos
+        
 def column_alignment(rowList):
     j = 0
     while j< max([len(row) for row in rowList]):
