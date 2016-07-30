@@ -22,8 +22,10 @@ data.sort()
 print data
 thres = int(step_miner_thres(data))
 print thres
-dither_img = split.naive_dithering(img,thres)
+ret,dither_img_thres = cv2.threshold(gray_img,thres,255,cv2.THRESH_BINARY_INV)
+ret,dither_img_200 = cv2.threshold(gray_img,thres,255,cv2.THRESH_BINARY_INV)
 
 cv2.imshow("gray",gray_img)
-cv2.imshow("dither",dither_img)
+cv2.imshow("dither_thres",dither_img_thres)
+cv2.imshow("dither_200",dither_img_200)
 cv2.waitKey(0)
