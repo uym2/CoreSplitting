@@ -26,10 +26,10 @@ colIdx = util.group2colNsort(objs)
 #print(colIdx[0][0])
 #print(colIdx[0][0])
 #util.column_alignment(rowList)
-idxMat = util.infer_missing_idx(rowIdx,colIdx)
+#idxMat = util.infer_missing_idx(rowIdx,colIdx)
 #print idxMat
-util.show_objs_by_matrix(idxMat,objs,image)
-#util.show_objs_by_dim(colIdx,objs,image)
+#util.show_objs_by_matrix(idxMat,objs,image)
+util.show_objs_by_dim(colIdx,objs,image)
 #util.show_objs(objs,image)
 
 # output
