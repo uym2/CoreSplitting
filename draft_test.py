@@ -15,9 +15,14 @@ def step_miner_thres(data):
     return fit_result[6]
 
 
-gray_img = cv2.imread("img5.jpeg",0)
-thres = step_miner_thres(gray_img.tolist())
-dither_img = split.naive_dithering(gray_img,thres)
+img = cv2.imread("img1.jpeg")
+gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+data = np.concatenate(gray_img)
+data.sort()
+print data
+thres = int(step_miner_thres(data))
+print thres
+dither_img = split.naive_dithering(img,thres)
 
 cv2.imshow("gray",gray_img)
 cv2.imshow("dither",dither_img)
