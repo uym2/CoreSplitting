@@ -1,0 +1,11 @@
+NCICDP_Colon_Cancer_1C__CDX2_files/
+NCICDP_Colon_Cancer_1D__CDX2_files/
+NCICDP_Colon_Cancer_2C__CDX2_files/
+NCICDP_Colon_Cancer_2D__CDX2_files/
+NCICDP_Colon_Cancer_3C__CDX2_files/
+NCICDP_Colon_Cancer_3D__CDX2_files/
+NCICDP_Colon_Cancer_4C__CDX2_files/
+NCICDP_Colon_Cancer_4D__CDX2_files/
+Stanford_TMAD_379__CDX2_files/
+Stanford_TMAD_388__CDX2_files/
+Stanford_TMAD_42__CDX2_files/
