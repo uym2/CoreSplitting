@@ -51,6 +51,7 @@ def standard_transform(dither_img):
     pca = PCA(n_components=2)
     pca.fit(M)
     # get the axises
+
     trans_mat = np.mat(pca.components_).transpose() # * r_mat # v has 2 columns corresponding to the 2 axises
 
 # MAD@ them

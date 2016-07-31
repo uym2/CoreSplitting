@@ -1,16 +1,25 @@
 import core_splitting_lib as util
+import pca_transform as trans
+#import sip
+#sip.setapi("QString", 2)
+#sip.setapi("QVariant", 2)
+
 import cv2
-import argparse
+import numpy as np
 
-# construct the argument parser and parse the arguments
-# to run: python core_split_demo.py -i img1.jpeg
+import sys
+from PyQt4 import QtGui
 
-ap = argparse.ArgumentParser()
-ap.add_argument("-i", "--image", required = True, help = "Path to the image")
-ap.add_argument("-o", "--output", help = "Output image")
-args = vars(ap.parse_args())
+app = QtGui.QApplication(sys.argv)
+fname = QtGui.QFileDialog.getOpenFileName(None,
+                    "Load Query", '.',
+                    "Image Files (*.png; *.jpg; *.jpeg)")
+if fname == "":
+    sys.exit()
+app.quit()
 
-image = cv2.imread(args["image"])
+image = cv2.imread(fname)
+cv2.imshow("img",image)
 dither_img = util.naive_dithering(image)
 #cv2.imshow("Dither", dither_img)
 #cv2.waitKey(0)
@@ -31,10 +40,3 @@ idxMat = util.infer_missing_idx(rowIdx,colIdx)
 util.show_objs_by_matrix(idxMat,objs,image)
 #util.show_objs_by_dim(colIdx,objs,image)
 #util.show_objs(objs,image)
-
-# output
-if args["output"]:
-	filename = args["output"]
-else:
-	filename = "splitted.jpeg"
-cv2.imwrite(filename,image)
