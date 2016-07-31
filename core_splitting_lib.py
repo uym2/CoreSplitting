@@ -2,6 +2,7 @@
 import numpy as np
 import cv2
 from scipy.ndimage import morphology, measurements
+import StepMiner
 
 DITHER_THRES = 200
 MIN_INTENSITY = 0
@@ -9,7 +10,11 @@ MAX_INTENSITY = 255
 NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
+MAX_TO_TPC = 1.8 # the maximum ration of an obj to the "typical"
 
+def step_miner_thres(data):
+    fit_result = StepMiner.fitStepSimple(data)
+    return fit_result[6]
 
 def naive_dithering(img,dither_thres=DITHER_THRES,inv=True):
 	# input: an image
@@ -182,6 +187,12 @@ def typical_obj_size(objList,method='avg'):
         
 def obj_area(obj):
     return abs((obj[3]-obj[2])*(obj[1]-obj[0]))
+    
+def obj_width(obj):
+    return abs((obj[1]-obj[0]))
+    
+def obj_height(obj):
+    return abs((obj[3]-obj[2])) 
         
 def remove_tiny_objs(objList):
     # the splitting algorithm produces some tiny pieces that are not real objects
@@ -189,7 +200,18 @@ def remove_tiny_objs(objList):
     tpc_size = typical_obj_size(objList)
     tpc_area = tpc_size[0]*tpc_size[1]
     return [obj for obj in objList if obj_area(obj)/tpc_area >= MIN_TO_TPC]
- 
+
+# not a great solution, but not yet come up with a better one at this stage
+def get_giant_objs(objList):
+    # (I think) it's better to remove tiny objects to eliminate lower outliners
+    # BEFORE calling this function so that finding the typical object is more reliable
+    tpc_size = typical_obj_size(objList)
+    width_thres = tpc_size[0]*MAX_TO_TPC
+    height_thres = tpc_size[1]*MAX_TO_TPC
+    return [obj for obj in objList if obj_width(obj)>width_thres or obj_height(obj)>height_thres]
+
+# wrote here just for testing purpose
+# not clear how to find a "good" percentage of tiny or giant objects 
 def remove_outliers(objList,tiny_rm_percent,giant_rm_percent):
     area_sort_idx = np.argsort([obj_area(obj) for obj in objList])
     length = len(objList)
@@ -197,6 +219,23 @@ def remove_outliers(objList,tiny_rm_percent,giant_rm_percent):
     endIdx = int(length*(100-giant_rm_percent)/100)
     return [objList[idx] for idx in area_sort_idx[startIdx:endIdx]]
  
+ 
+# using step_miner to find thresholds
+# under developing 
+def classify_by_size(objList):
+    # based on the object's area
+    # classify them as normal, tiny, or giant
+    areaList = [obj_area(obj) for obj in objList]
+    sorted(areaList)
+    thres_tiny = step_miner_thres(areaList)
+    thres_giant = step_miner_thres([a for a in areaList if a >= thres_tiny])
+    
+    tinyList = [obj for obj in objList if obj_area(obj) < thres_tiny]
+    normalList = [obj for obj in objList if obj_area(obj)>=thres_tiny and obj_area(obj)<=thres_giant]
+    giantList = [obj for obj in objList if obj_area(obj) > thres_giant] 
+ 
+    return tinyList, normalList, giantList  
+
 def find_centers(objList):
     return [[(obj[1]+obj[0])/2,(obj[3]+obj[2])/2] for obj in objList]
 
@@ -357,10 +396,9 @@ def show_objs_by_dim(idxList,objList,image):
                  y_start = obj[2]
                  y_end = obj[3]
                  cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
-                 # illustration
-                 cv2.imshow("split lines",image)
-                 cv2.waitKey(0)
         i = i+1
+    cv2.imshow("Objects grouped by one dimension",image)
+    cv2.waitKey(0)
 
 def show_objs_by_matrix(idxMat,objList,image):
     real_color = [255,0,0]
@@ -388,6 +426,8 @@ def show_objs_by_matrix(idxMat,objList,image):
     cv2.imshow("infer objs",image)
     cv2.waitKey(0)
 
+#########################################################
+###### obsolete function, should be removed soon ########
 def show_objs_by_column(alignedList,image):
     colors = [(255,0,0),(0,255,0),(0,0,255)]
     virtual_color = (0,255,255)
@@ -412,7 +452,9 @@ def show_objs_by_column(alignedList,image):
     # illustration
     cv2.imshow("split lines",image)
     cv2.waitKey(0)
- 
+
+#########################################################
+###### obsolete function, should be removed soon ######## 
 def showSteps_objs_byRow(orgList,image):
     colors = [(255,0,0),(0,255,0),(0,0,255)]
     i = 0
@@ -429,13 +471,19 @@ def showSteps_objs_byRow(orgList,image):
                 cv2.waitKey(500)
         i = i+1
   
-def show_objs(objList,image):
+def show_objs(objList,image,color=(255,0,0),linewidth=2,showWindow=True,waitTime=0):
     for obj in objList:
         if obj:
             x_start = obj[0]
             x_end = obj[1]
             y_start = obj[2]
             y_end = obj[3]
-            cv2.rectangle(image,(x_start,y_start),(x_end,y_end),(255,0,0),2)
-    cv2.imshow("show",image)
-    cv2.waitKey(0)
+            cv2.rectangle(image,(x_start,y_start),(x_end,y_end),color,linewidth)
+    if showWindow:
+        cv2.imshow("show",image)
+        cv2.waitKey(waitTime)
+    
+def show_obj_by_size(tinyList,normalList,giantList,image):
+    show_objs(tinyList,image,color=(255,0,0),showWindow=False)
+    show_objs(normalList,image,color=(0,255,0),showWindow=False)
+    show_objs(giantList,image,color=(0,0,255),showWindow=True)
