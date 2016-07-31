@@ -10,8 +10,8 @@ from sklearn.decomposition import PCA
 
 def scatter_img(dither_img):
 # transform a dithered image into a list of
-# scatter 2-D points representing the x and y coordinates of 
-# non-zero pixels of the original img
+# 2-D scattered points that represent the x and y coordinates of 
+# non-zero pixels in the original img
     L = []
     h,w = dither_img.shape
     
@@ -51,7 +51,24 @@ def standard_transform(dither_img):
     pca = PCA(n_components=2)
     pca.fit(M)
     # get the axises
-    trans_mat = np.mat(pca.components_).transpose() # v has 2 columns corresponding to the 2 axises
+    trans_mat = np.mat(pca.components_).transpose() # * r_mat # v has 2 columns corresponding to the 2 axises
+
+# MAD@ them
+    print trans_mat
+    if max(abs(trans_mat[0,0]), abs(trans_mat[0,1])) > 0.99: # below 8 degrees
+        print "No need!"
+        trans_mat = np.eye(2) #np.mat([[1, 0], [0, 1]])
+    else:
+        if trans_mat[0,0] < 0:
+            trans_mat = -trans_mat
+
+        if trans_mat[0,0] < abs(trans_mat[0,1]):
+            sign = np.sign(trans_mat[0,1])
+            if sign == 0:
+                sign = 1
+            trans_mat = trans_mat * np.mat([[0, -sign], [sign, 0]])
+    print trans_mat
+# End MAD@ them
     
     N = project(M,trans_mat)
     # shift data so that min_x = 0 and min_y = 0
