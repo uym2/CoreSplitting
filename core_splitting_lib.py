@@ -11,7 +11,7 @@ NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
 
 
-def naive_dithering(img,dither_thres = DITHER_THRES, inv=True):
+def naive_dithering(img,dither_thres=DITHER_THRES,inv=True):
 	# input: an image
 	# output: a black-white image reflecting the same content
 

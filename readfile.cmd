@@ -1,0 +1,1 @@
+for /f "tokens=* delims=" %%x in (out.txt) do mkdir "%%x"
