@@ -52,7 +52,10 @@ def standard_transform(dither_img):
     pca.fit(M)
     # get the axises
     trans_mat = np.mat(pca.components_).transpose() # v has 2 columns corresponding to the 2 axises
-    
+    cos = np.mat([0,1])*trans_mat
+    cos[0,0] = cos[0,0]/np.sqrt(cos[0,0]*cos[0,0]+cos[0,1]*cos[0,1])
+    cos[0,1] = cos[0,1]/np.sqrt(cos[0,0]*cos[0,0]+cos[0,1]*cos[0,1])
+    print cos
     N = project(M,trans_mat)
     # shift data so that min_x = 0 and min_y = 0
     # to avoid the case when min_x < 0 then we lose the data points that have x<0
