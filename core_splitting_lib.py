@@ -1,6 +1,7 @@
 # import the necessary packages
 import numpy as np
 import cv2
+from scipy.ndimage import morphology, measurements
 
 DITHER_THRES = 200
 MIN_INTENSITY = 0
@@ -10,15 +11,54 @@ NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
 
 
-def naive_dithering(img,inv=True):
+def naive_dithering(img,dither_thres = DITHER_THRES, inv=True):
 	# input: an image
 	# output: a black-white image reflecting the same content
 
 	# convert to grayscale
 	output_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-	logical_idx = (output_img <= DITHER_THRES) if inv else (output_img > DITHER_THRES)
+	logical_idx = (output_img <= dither_thres) if inv else (output_img > dither_thres)
 	output_img = MAX_INTENSITY*logical_idx
 	return output_img			
+
+
+def component_labeling(img):
+    # input: an image
+    # output: a black-white image reflecting the same content
+    # MAD
+
+    # convert to grayscale
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    bw_img = 1 * (gray_img < DITHER_THRES)
+    im_close = morphology.binary_closing(bw_img, np.ones((3,3)),iterations=1)
+#    im_close = 1 * (gray_img < DITHER_THRES)
+    labels, nbr_objects = measurements.label(im_close)
+    	
+    h, w = labels.shape
+    
+    labels_dict = {}
+    for i in range(h):
+        for j in range(w):
+            key = labels[i,j]
+            if key == 0:
+                continue
+            labels_dict[key] = labels_dict.get(key, 0) + 1
+
+    mean_val = np.mean(labels_dict.values()) * MIN_TO_TPC
+    print mean_val, np.median(labels_dict.values())
+
+    total_labels = rem_num = 0
+    for i in range(h):
+        for j in range(w):
+            key = labels[i,j]
+            if key > 0:
+                total_labels += 1
+                if  labels_dict[key] < mean_val:
+                    labels[i,j] = 0
+                    rem_num += 1
+    print total_labels, rem_num
+
+    return labels
 
 def otsu_dithering(img,inv=True):
     gray_img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
@@ -145,10 +185,17 @@ def obj_area(obj):
         
 def remove_tiny_objs(objList):
     # the splitting algorithm produces some tiny pieces that are not real objects
-    # this function remove those from the objList
+    # this function removes those from the objList
     tpc_size = typical_obj_size(objList)
     tpc_area = tpc_size[0]*tpc_size[1]
     return [obj for obj in objList if obj_area(obj)/tpc_area >= MIN_TO_TPC]
+ 
+def remove_outliers(objList,tiny_rm_percent,giant_rm_percent):
+    area_sort_idx = np.argsort([obj_area(obj) for obj in objList])
+    length = len(objList)
+    startIdx = int(length*tiny_rm_percent/100)
+    endIdx = int(length*(100-giant_rm_percent)/100)
+    return [objList[idx] for idx in area_sort_idx[startIdx:endIdx]]
  
 def find_centers(objList):
     return [[(obj[1]+obj[0])/2,(obj[3]+obj[2])/2] for obj in objList]

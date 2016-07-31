@@ -30,16 +30,14 @@ img = cv2.imread(fname)
 dither_img = split.naive_dithering(img)
 
 transform_img,trans_mat,shift = trans.standard_transform(dither_img)
-#cv2.imshow("transform",transform_img)
-#cv2.waitKey(1000)
 objs = []
 h_trans,w_trans = transform_img.shape
-#cv2.imshow("transform",transform_img)
-#cv2.waitKey(0)
+cv2.imshow("transform",transform_img)
+cv2.waitKey(0)
 split.find_all_splits(transform_img,objs,0,w_trans,0,h_trans)
 objs = split.remove_tiny_objs(objs)
 rowIdx = split.group2rowNsort(objs)
-#colIdx = split.group2colNsort(objs)
+colIdx = split.group2colNsort(objs)
 #matIdx = split.infer_missing_idx(rowIdx,colIdx)
 # map rowList to the original axises
 #rowList_trans = [] # rowList standard
@@ -56,5 +54,5 @@ for obj in objs:
         objs_trans.append([int(t) for t in [p1_trans[0],p2_trans[0],p1_trans[1],p2_trans[1]]])
 #rgb = cv2.cvtColor(transform_img,cv2.COLOR_GRAY2BGR)
 #split.show_objs_by_matrix(matIdx,objs_trans,img)        
-split.show_objs_by_dim(rowIdx,objs_trans,img)
+split.show_objs_by_dim(colIdx,objs_trans,img)
 #split.show_objs(objs_trans,img)
