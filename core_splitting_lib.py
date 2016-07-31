@@ -235,7 +235,7 @@ def clusterInOneDim(objList,dim):
                 neighbor_obj = objList[sIdx[k]]
         
         # check if this_obj belong to current row/column
-        if (neighbor_obj[end]-this_obj[start]<0):        
+        if (neighbor_obj[end]-this_obj[start]<7):        
             #add the new cluster and split 
             clusters.append([obj_idx for obj_idx in sIdx[i:j]])
             i = j
@@ -247,7 +247,7 @@ def clusterInOneDim(objList,dim):
     
 def group2rowNsort(objList):
     clusters = clusterInOneDim(objList,'row')
-    adjacent_exchange(clusters,objList,'row')
+    #adjacent_exchange(clusters,objList,'row')
     rowIdx = []
     for cl in clusters:
         cl_sort = np.argsort([objList[idx][0] for idx in cl])
@@ -256,7 +256,7 @@ def group2rowNsort(objList):
 
 def group2colNsort(objList):
     clusters = clusterInOneDim(objList,'col')
-    adjacent_exchange(clusters,objList,'col')
+    #adjacent_exchange(clusters,objList,'col')
     colIdx = []
     for cl in clusters:
         cl_sort = np.argsort([objList[idx][2] for idx in cl])
@@ -271,11 +271,11 @@ def adjacent_exchange(clusters,objList,dim):
         start = 0
         end = 1
 
-    curr_clst_pos = np.median([(objList[idx][start]+objList[idx][end])/2 for idx in clusters[0]])        
+    curr_clst_pos = np.mean([(objList[idx][start]+objList[idx][end])/2 for idx in clusters[0]])        
     for i in range(1,len(clusters)):
         # Note: clusters[i-1] is the "current"
         #       clusters[i] is the "adjacent"
-        adj_clst_pos = np.median([(objList[idx][start]+objList[idx][end])/2 for idx in clusters[i]])        
+        adj_clst_pos = np.mean([(objList[idx][start]+objList[idx][end])/2 for idx in clusters[i]])        
         
         for idx in clusters[i-1]:
             # check each obj in current cluster
