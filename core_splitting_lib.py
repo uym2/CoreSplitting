@@ -12,8 +12,8 @@ MIN_INTENSITY = 0
 MAX_INTENSITY = 255
 NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
-MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
-MAX_TO_TPC = 1.8 # the maximum ration of an obj to the "typical"
+MIN_TO_TPC = 0.7 # the minimum ratio of an obj to the "typical" in an objectList
+MAX_TO_TPC = 1.5 # the maximum ration of an obj to the "typical"
 
 def step_miner_thres(data):
     fit_result = StepMiner.fitStepSimple(data)
@@ -89,11 +89,11 @@ def otsu_dithering(img,inv=True):
         thr,binary_img = cv2.threshold(gray_img,0,255,cv2.THRESH_BINARY|cv2.THRESH_OTSU)
     return binary_img
 
-def is_split_line_of(dither_img,line_type,intercept):
+def is_split_line_of(dither_img,line_type,intercept,noise_torl=NOISE_TORL):
 	if line_type == 'H':
-		return np.mean(dither_img[intercept,:]) < NOISE_TORL
+		return np.mean(dither_img[intercept,:]) < noise_torl
 	elif line_type == 'V':
-		return np.mean(dither_img[:,intercept]) < NOISE_TORL
+		return np.mean(dither_img[:,intercept]) < noise_torl
 
 def find_split_lines(dither_img,line_type):
 	# input: a dithered image (black-white only)
@@ -133,7 +133,7 @@ def find_split_lines(dither_img,line_type):
 			return [l1,l2]
 	return None # not found
 
-def find_split_line(dither_img,line_type):
+def find_split_line(dither_img,line_type,noise_torl=NOISE_TORL):
 	# input: a dithered image (black-white only)
 	# output: a line (horizontal or vertical) that splits the image into 2 halves without any overlapping object
 	# (a horizontal line can be determined by its y-intercept)
@@ -148,35 +148,35 @@ def find_split_line(dither_img,line_type):
 	if (is_split_line_of(dither_img,line_type,intercept)):
 		return intercept
 	for i in range(dim/2):
-		if (is_split_line_of(dither_img,line_type,intercept-i)):
+		if (is_split_line_of(dither_img,line_type,intercept-i,noise_torl=noise_torl)):
 			return intercept-i
-		elif (is_split_line_of(dither_img,line_type,intercept+i)):
+		elif (is_split_line_of(dither_img,line_type,intercept+i,noise_torl=noise_torl)):
 			return intercept+i
 	return -1 # not found
 
 
-def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end):
+def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end,noise_torl=NOISE_TORL):
 	h,w = dither_img.shape
 	# stop recursion
-	if h < 2 or w < 2 or np.mean(dither_img)<NOISE_TORL:
+	if h < 2 or w < 2 or np.mean(dither_img)<noise_torl:
 		return
-	horr_split_lines = find_split_lines(dither_img,'H')
+	horr_split_lines = find_split_lines(dither_img,'H',noise_torl)
 	if horr_split_lines:
 		y1 = horr_split_lines[0]
 		y2 = horr_split_lines[1]
 		# recursive calls
-		find_all_splits(dither_img[:y1,:],objs,x_start,x_end,y_start,y_start+y1)
-		find_all_splits(dither_img[y2:,:],objs,x_start,x_end,y_start+y2,y_end)
+		find_all_splits(dither_img[:y1,:],objs,x_start,x_end,y_start,y_start+y1,noise_torl)
+		find_all_splits(dither_img[y2:,:],objs,x_start,x_end,y_start+y2,y_end,noise_torl)
 	else:
-		ver_split_lines = find_split_lines(dither_img,'V')
+		ver_split_lines = find_split_lines(dither_img,'V',noise_torl)
 		if not ver_split_lines:
 			objs.append([x_start,x_end,y_start,y_end]) # add the found object
 			return
 		x1 = ver_split_lines[0]
 		x2 = ver_split_lines[1]
 		# recursive calls
-		find_all_splits(dither_img[:,:x1],objs,x_start,x_start+x1,y_start,y_end)
-		find_all_splits(dither_img[:,x2:],objs,x_start+x2+1,x_end,y_start,y_end)
+		find_all_splits(dither_img[:,:x1],objs,x_start,x_start+x1,y_start,y_end,noise_torl)
+		find_all_splits(dither_img[:,x2:],objs,x_start+x2+1,x_end,y_start,y_end,noise_torl)
 
 # alternative to find_all_split
 # using connected component to label objs
@@ -264,24 +264,52 @@ def obj_width(obj):
 def obj_height(obj):
     return abs((obj[3]-obj[2])) 
         
-def remove_tiny_objs(objList):
+def remove_tiny_objs(objList,tpc_size=None):
     # the splitting algorithm produces some tiny pieces that are not real objects
     # this function removes those from the objList
-    tpc_size = typical_obj_size(objList)
+    if not tpc_size:
+        tpc_size = typical_obj_size(objList)
     tpc_area = tpc_size[0]*tpc_size[1]
     return [obj for obj in objList if obj_area(obj)/tpc_area >= MIN_TO_TPC]
 
 # not a great solution, but not yet come up with a better one at this stage
-def get_giant_objs(objList):
+def get_giant_objs(objList,tpc_size=None):
     # (I think) it's better to remove tiny objects to eliminate lower outliners
     # BEFORE calling this function so that finding the typical object is more reliable
-    tpc_size = typical_obj_size(objList)
+    if not tpc_size:
+        tpc_size = typical_obj_size(objList)
     width_thres = tpc_size[0]*MAX_TO_TPC
     height_thres = tpc_size[1]*MAX_TO_TPC
-    return [obj for obj in objList if obj_width(obj)>width_thres or obj_height(obj)>height_thres]
+    giantList = []
+    for obj in objList:
+        if obj_width(obj)>width_thres or obj_height(obj)>height_thres:
+                giantList.append(obj)
+                objList.remove(obj)
+    return giantList
+
+def split_giant_objs(giantList,dither_img,tpc_size,open_win=3,iterNum=1):
+    # use morphology opening to split sticky objects
+    # (the reason for that they form giant objs in the first round)
+    objList = []
+    #while giantList:
+    for obj in giantList:
+            x_start = obj[0]
+            x_end = obj[1]
+            y_start = obj[2]
+            y_end = obj[3]
+            subImg = dither_img[y_start:y_end,x_start:x_end]
+            subImg = morphology.binary_opening( subImg, 
+                                       np.ones((open_win,open_win)),iterations=iterNum )
+            subObjs = label_cores(subImg) # subOjbs: a list of objects in subImg
+            objList = (objList + 
+            [[obj[0]+x_start,obj[1]+x_start,obj[2]+y_start,obj[3]+y_start] for obj in subObjs] )
+    objList = remove_tiny_objs(objList,tpc_size)
+    #giantList = get_giant_objs(objList,tpc_size)
+    
+    return objList                          
 
 # wrote here just for testing purpose
-# not clear how to find a "good" percentage of tiny or giant objects 
+# not clear how to find a "good" percentage for tiny and giant objects 
 def remove_outliers(objList,tiny_rm_percent,giant_rm_percent):
     area_sort_idx = np.argsort([obj_area(obj) for obj in objList])
     length = len(objList)
