@@ -3,6 +3,9 @@ import numpy as np
 import cv2
 from scipy.ndimage import morphology, measurements
 import StepMiner
+from scipy.ndimage import measurements,morphology
+from PIL import Image
+import pylab
 
 DITHER_THRES = 200
 MIN_INTENSITY = 0
@@ -15,6 +18,19 @@ MAX_TO_TPC = 1.8 # the maximum ration of an obj to the "typical"
 def step_miner_thres(data):
     fit_result = StepMiner.fitStepSimple(data)
     return fit_result[6]
+
+def stepminer_dithering(img):
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    data = np.concatenate(gray_img)
+    data.sort()
+    thres = int(step_miner_thres(data))
+    print thres
+    if thres < (MAX_INTENSITY-MIN_INTENSITY)/2:
+        dither_type = cv2.THRESH_BINARY
+    else:
+        dither_type = cv2.THRESH_BINARY_INV
+    ret,dither_img = cv2.threshold(gray_img,thres,255,dither_type)
+    return dither_img
 
 def naive_dithering(img,dither_thres=DITHER_THRES,inv=True):
 	# input: an image
@@ -162,6 +178,60 @@ def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end):
 		find_all_splits(dither_img[:,:x1],objs,x_start,x_start+x1,y_start,y_end)
 		find_all_splits(dither_img[:,x2:],objs,x_start+x2+1,x_end,y_start,y_end)
 
+# alternative to find_all_split
+# using connected component to label objs
+# MAD's work
+def label_cores(dither_img):
+    im_close = morphology.binary_closing(dither_img, np.ones((3,3)),iterations=1)
+    labels, nbr_objects = measurements.label(im_close)
+    #pylab.imshow(out)
+    #pylab.show()
+    #print labels.shape, nbr_objects
+    h, w = labels.shape
+    
+    labels_dict = {}
+    for i in range(h):
+        for j in range(w):
+            key = labels[i,j]
+            if key == 0:
+                continue
+            info_list = labels_dict.get(key, [0, 99999, 0, 99999, 0])
+            info_list[0] += 1
+
+            if info_list[1] > j:
+                info_list[1] = j
+    
+            if info_list[2] < j:
+                info_list[2] = j
+    
+            if info_list[3] > i:
+                info_list[3] = i
+    
+            if info_list[4] < i:
+                info_list[4] = i
+            labels_dict[key] = info_list
+            
+    val_list = []
+    for key in labels_dict.keys():
+        val = labels_dict[key][0]
+        val_list.append(val)
+    
+    mean_val = np.mean(val_list) / 2
+    order_list = labels_dict.keys()
+    sorted(order_list)
+    
+    objs = []
+    for key in order_list:
+        l = labels_dict[key]
+        if l[0] < mean_val:
+            continue
+        x_start = l[1]
+        x_end = l[2]
+        y_start = l[3]
+        y_end = l[4]
+        objs.append([x_start,x_end,y_start,y_end])
+        #cv2.rectangle(img,(x_start,y_start),(x_end,y_end),(0, 0, 255),2)
+    return objs
 
 # each object is located by a rectangular bounding box
 # a rectangle is located by 4 coordinates: x_start, x_end, y_start, y_end
