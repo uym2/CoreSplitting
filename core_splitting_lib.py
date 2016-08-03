@@ -3,20 +3,14 @@ import numpy as np
 import cv2
 from scipy.ndimage import morphology, measurements
 import StepMiner
-from scipy.ndimage import measurements,morphology
-from PIL import Image
-import pylab
-
 
 DITHER_THRES = 200
 MIN_INTENSITY = 0
 MAX_INTENSITY = 255
 NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
-
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
 MAX_TO_TPC = 1.5 # the maximum ratio of an obj to the "typical"
-
 
 def step_miner_thres(data):
     fit_result = StepMiner.fitStepSimple(data)
@@ -163,9 +157,7 @@ def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end,noise_torl=NOISE
 	# stop recursion
 	if h < 2 or w < 2 or np.mean(dither_img)<noise_torl:
 		return
-
 	horr_split_lines = find_split_lines(dither_img,'H',noise_torl=noise_torl)
-
 	if horr_split_lines:
 		y1 = horr_split_lines[0]
 		y2 = horr_split_lines[1]
@@ -173,9 +165,7 @@ def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end,noise_torl=NOISE
 		find_all_splits(dither_img[:y1,:],objs,x_start,x_end,y_start,y_start+y1,noise_torl)
 		find_all_splits(dither_img[y2:,:],objs,x_start,x_end,y_start+y2,y_end,noise_torl)
 	else:
-
 		ver_split_lines = find_split_lines(dither_img,'V',noise_torl=noise_torl)
-
 		if not ver_split_lines:
 			objs.append([x_start,x_end,y_start,y_end]) # add the found object
 			return
@@ -276,30 +266,38 @@ def remove_tiny_objs(objList,tpc_size=None):
     # this function removes those from the objList
     if not tpc_size:
         tpc_size = typical_obj_size(objList,'med')
-        
     tpc_area = tpc_size[0]*tpc_size[1]
     return [obj for obj in objList if obj_area(obj)/tpc_area >= MIN_TO_TPC]
 
-# not a great solution, but not yet come up with a better one at this stage
+# notyet  a great solution, but not yet come up with a better one at this stage
 def get_giant_objs(objList,tpc_size=None):
-    # (I think) it's better to remove tiny objects to eliminate lower outliners
+    # it's better to remove tiny objects to eliminate lower outliners
     # BEFORE calling this function so that finding the typical object is more reliable
+    # this functions find giant objs, put them to the giantList and 
+    # AT THE SAME TIME remove those objs from objList
     if not tpc_size:
-        tpc_size = typical_obj_size(objList)
+        tpc_size = typical_obj_size(objList,'med')
     width_thres = tpc_size[0]*MAX_TO_TPC
     height_thres = tpc_size[1]*MAX_TO_TPC
     giantList = []
     for obj in objList:
         if obj_width(obj)>width_thres or obj_height(obj)>height_thres:
-                giantList.append(obj)
-                objList.remove(obj)
+            # add to giantList
+            giantList.append(obj)
+            # remove from objList
+            objList.remove(obj)
+            # also remove all objs that are inside the giant obj
+            for obj1 in objList:
+                if ( obj1[0]>=obj[0] and obj1[1]<=obj[1] and
+                     obj1[2]>=obj[2] and obj1[3]<=obj[3] ):
+                         objList.remove(obj1)
     return giantList
+        
 
 def split_giant_objs(giantList,dither_img,tpc_size,open_win=3,iterNum=1):
     # use morphology opening to split sticky objects
     # (the reason for that they form giant objs in the first round)
     objList = []
-
     dither_img = morphology.binary_closing(dither_img, 
                                        np.ones((3,3)),iterations=iterNum )
     while giantList:
@@ -312,14 +310,42 @@ def split_giant_objs(giantList,dither_img,tpc_size,open_win=3,iterNum=1):
                 subImg = morphology.binary_opening( subImg, 
                                            np.ones((open_win,open_win)),iterations=iterNum )
                 subObjs = label_cores(subImg) # subOjbs: a list of objects in subImg
-                objList = (objList + 
-                [[obj[0]+x_start,obj[1]+x_start,obj[2]+y_start,obj[3]+y_start] for obj in subObjs] )
+                giantSplitted = [[obj[0]+x_start,obj[1]+x_start,obj[2]+y_start,obj[3]+y_start] for obj in subObjs]
+                #objList = merge_objList_N_giantSplitted(objList,giantSplitted)
+                objList = objList + giantSplitted
         objList = remove_tiny_objs(objList,tpc_size)
         giantList = get_giant_objs(objList,tpc_size)
         open_win = open_win+2
     
     return objList                          
 
+def is_overlapped(obj1,obj2):
+    return ( (obj1[1]-obj2[0])*(obj2[1]-obj1[0]) >= 0 and
+             (obj1[3]-obj2[2])*(obj2[3]-obj1[2]) >= 0 )
+
+def merge_objList_N_giantSplitted(objList,giantSplitted):
+    # an obj in the giantSplitted is added to objList ONLY IF 
+    # it is not overlapped with any obj in objList
+    validList = []
+    for s_obj in giantSplitted:
+        has_overlap = False
+        for obj in objList:
+            if is_overlapped(s_obj,obj):
+                has_overlap = True
+                break
+        if not has_overlap:    
+            validList.append(s_obj)
+    return objList + validList
+
+def handle_giant(objList,dither_img):
+    # find abnormally large objs in objList (the giants)
+    # split them into smaller objs and add those splitted objs 
+    # back to the objList. There are some details in the implementation
+    # refer to the functions called below for details
+    giantList = get_giant_objs(objList)
+    giantSplitted = split_giant_objs(giantList,dither_img,typical_obj_size(objList))
+    return merge_objList_N_giantSplitted(objList,giantSplitted)
+    
 # wrote here just for testing purpose
 # not clear how to find a "good" percentage for tiny and giant objects 
 def remove_outliers(objList,tiny_rm_percent,giant_rm_percent):
@@ -509,7 +535,6 @@ def show_objs_by_dim(idxList,objList,image,showWin=True):
                  y_end = obj[3]
                  cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
         i = i+1
-
     if showWin:
         cv2.imshow("Objects grouped by one dimension",image)
         cv2.waitKey(0)
