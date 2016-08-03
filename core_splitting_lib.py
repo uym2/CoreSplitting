@@ -3,17 +3,14 @@ import numpy as np
 import cv2
 from scipy.ndimage import morphology, measurements
 import StepMiner
-from scipy.ndimage import measurements,morphology
-from PIL import Image
-import pylab
 
 DITHER_THRES = 200
 MIN_INTENSITY = 0
 MAX_INTENSITY = 255
 NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
-MIN_TO_TPC = 0.7 # the minimum ratio of an obj to the "typical" in an objectList
-MAX_TO_TPC = 1.5 # the maximum ration of an obj to the "typical"
+MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
+MAX_TO_TPC = 1.5 # the maximum ratio of an obj to the "typical"
 
 def step_miner_thres(data):
     fit_result = StepMiner.fitStepSimple(data)
@@ -95,7 +92,7 @@ def is_split_line_of(dither_img,line_type,intercept,noise_torl=NOISE_TORL):
 	elif line_type == 'V':
 		return np.mean(dither_img[:,intercept]) < noise_torl
 
-def find_split_lines(dither_img,line_type):
+def find_split_lines(dither_img,line_type,noise_torl=NOISE_TORL):
 	# input: a dithered image (black-white only)
 	# output: two lines (horizontal or vertical) that splits the image into 3 segments:
 		# + upper and lower parts contains all objects without overlapping 
@@ -112,10 +109,10 @@ def find_split_lines(dither_img,line_type):
 	l1 = dim/2
 	l2 = dim/2
 
-	if (is_split_line_of(dither_img,line_type,l1)):
+	if (is_split_line_of(dither_img,line_type,l1,noise_torl=noise_torl)):
 		while l1>0 and is_split_line_of(dither_img,line_type,l1-1):
 			l1 = l1-1
-		while l2<dim-1 and is_split_line_of(dither_img,line_type,l2+1):
+		while l2<dim-1 and is_split_line_of(dither_img,line_type,l2+1,noise_torl=noise_torl):
 			l2 = l2+1
 		return [l1,l2]
 	for i in range(1,dim/2):
@@ -125,10 +122,10 @@ def find_split_lines(dither_img,line_type):
 			while l1>0 and is_split_line_of(dither_img,line_type,l1-1):
 				l1 = l1-1
 			return [l1,l2]
-		elif (is_split_line_of(dither_img,line_type,l1+i)):
+		elif (is_split_line_of(dither_img,line_type,l1+i,noise_torl=noise_torl)):
 			l1 = l1+i
 			l2 = l1
-			while l2<dim-1 and is_split_line_of(dither_img,line_type,l2+1):
+			while l2<dim-1 and is_split_line_of(dither_img,line_type,l2+1,noise_torl=noise_torl):
 				l2 = l2+1
 			return [l1,l2]
 	return None # not found
@@ -160,7 +157,7 @@ def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end,noise_torl=NOISE
 	# stop recursion
 	if h < 2 or w < 2 or np.mean(dither_img)<noise_torl:
 		return
-	horr_split_lines = find_split_lines(dither_img,'H',noise_torl)
+	horr_split_lines = find_split_lines(dither_img,'H',noise_torl=noise_torl)
 	if horr_split_lines:
 		y1 = horr_split_lines[0]
 		y2 = horr_split_lines[1]
@@ -168,7 +165,7 @@ def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end,noise_torl=NOISE
 		find_all_splits(dither_img[:y1,:],objs,x_start,x_end,y_start,y_start+y1,noise_torl)
 		find_all_splits(dither_img[y2:,:],objs,x_start,x_end,y_start+y2,y_end,noise_torl)
 	else:
-		ver_split_lines = find_split_lines(dither_img,'V',noise_torl)
+		ver_split_lines = find_split_lines(dither_img,'V',noise_torl=noise_torl)
 		if not ver_split_lines:
 			objs.append([x_start,x_end,y_start,y_end]) # add the found object
 			return
@@ -268,46 +265,87 @@ def remove_tiny_objs(objList,tpc_size=None):
     # the splitting algorithm produces some tiny pieces that are not real objects
     # this function removes those from the objList
     if not tpc_size:
-        tpc_size = typical_obj_size(objList)
+        tpc_size = typical_obj_size(objList,'med')
     tpc_area = tpc_size[0]*tpc_size[1]
     return [obj for obj in objList if obj_area(obj)/tpc_area >= MIN_TO_TPC]
 
-# not a great solution, but not yet come up with a better one at this stage
+# notyet  a great solution, but not yet come up with a better one at this stage
 def get_giant_objs(objList,tpc_size=None):
-    # (I think) it's better to remove tiny objects to eliminate lower outliners
+    # it's better to remove tiny objects to eliminate lower outliners
     # BEFORE calling this function so that finding the typical object is more reliable
+    # this functions find giant objs, put them to the giantList and 
+    # AT THE SAME TIME remove those objs from objList
     if not tpc_size:
-        tpc_size = typical_obj_size(objList)
+        tpc_size = typical_obj_size(objList,'med')
     width_thres = tpc_size[0]*MAX_TO_TPC
     height_thres = tpc_size[1]*MAX_TO_TPC
     giantList = []
     for obj in objList:
         if obj_width(obj)>width_thres or obj_height(obj)>height_thres:
-                giantList.append(obj)
-                objList.remove(obj)
+            # add to giantList
+            giantList.append(obj)
+            # remove from objList
+            objList.remove(obj)
+            # also remove all objs that are inside the giant obj
+            for obj1 in objList:
+                if ( obj1[0]>=obj[0] and obj1[1]<=obj[1] and
+                     obj1[2]>=obj[2] and obj1[3]<=obj[3] ):
+                         objList.remove(obj1)
     return giantList
+        
 
 def split_giant_objs(giantList,dither_img,tpc_size,open_win=3,iterNum=1):
     # use morphology opening to split sticky objects
     # (the reason for that they form giant objs in the first round)
     objList = []
-    #while giantList:
-    for obj in giantList:
-            x_start = obj[0]
-            x_end = obj[1]
-            y_start = obj[2]
-            y_end = obj[3]
-            subImg = dither_img[y_start:y_end,x_start:x_end]
-            subImg = morphology.binary_opening( subImg, 
-                                       np.ones((open_win,open_win)),iterations=iterNum )
-            subObjs = label_cores(subImg) # subOjbs: a list of objects in subImg
-            objList = (objList + 
-            [[obj[0]+x_start,obj[1]+x_start,obj[2]+y_start,obj[3]+y_start] for obj in subObjs] )
-    objList = remove_tiny_objs(objList,tpc_size)
-    #giantList = get_giant_objs(objList,tpc_size)
+    dither_img = morphology.binary_closing(dither_img, 
+                                       np.ones((3,3)),iterations=iterNum )
+    while giantList:
+        for obj in giantList:
+                x_start = obj[0]
+                x_end = obj[1]
+                y_start = obj[2]
+                y_end = obj[3]
+                subImg = dither_img[y_start:y_end,x_start:x_end]
+                subImg = morphology.binary_opening( subImg, 
+                                           np.ones((open_win,open_win)),iterations=iterNum )
+                subObjs = label_cores(subImg) # subOjbs: a list of objects in subImg
+                giantSplitted = [[obj[0]+x_start,obj[1]+x_start,obj[2]+y_start,obj[3]+y_start] for obj in subObjs]
+                #objList = merge_objList_N_giantSplitted(objList,giantSplitted)
+                objList = objList + giantSplitted
+        objList = remove_tiny_objs(objList,tpc_size)
+        giantList = get_giant_objs(objList,tpc_size)
+        open_win = open_win+2
     
     return objList                          
 
+def is_overlapped(obj1,obj2):
+    return ( (obj1[1]-obj2[0])*(obj2[1]-obj1[0]) >= 0 and
+             (obj1[3]-obj2[2])*(obj2[3]-obj1[2]) >= 0 )
+
+def merge_objList_N_giantSplitted(objList,giantSplitted):
+    # an obj in the giantSplitted is added to objList ONLY IF 
+    # it is not overlapped with any obj in objList
+    validList = []
+    for s_obj in giantSplitted:
+        has_overlap = False
+        for obj in objList:
+            if is_overlapped(s_obj,obj):
+                has_overlap = True
+                break
+        if not has_overlap:    
+            validList.append(s_obj)
+    return objList + validList
+
+def handle_giant(objList,dither_img):
+    # find abnormally large objs in objList (the giants)
+    # split them into smaller objs and add those splitted objs 
+    # back to the objList. There are some details in the implementation
+    # refer to the functions called below for details
+    giantList = get_giant_objs(objList)
+    giantSplitted = split_giant_objs(giantList,dither_img,typical_obj_size(objList))
+    return merge_objList_N_giantSplitted(objList,giantSplitted)
+    
 # wrote here just for testing purpose
 # not clear how to find a "good" percentage for tiny and giant objects 
 def remove_outliers(objList,tiny_rm_percent,giant_rm_percent):
@@ -435,7 +473,9 @@ def adjacent_exchange(clusters,objList,dim):
                 clusters[i-1].append(idx)                
                 
         curr_clst_pos = adj_clst_pos
-        
+
+#########################################################
+###### obsolete function, should be removed soon ########        
 def column_alignment(rowList):
     j = 0
     while j< max([len(row) for row in rowList]):
@@ -444,7 +484,7 @@ def column_alignment(rowList):
             if j < len(row):
                 col.append(row[j])
             else:
-                col.append(None)
+                col.append(np.nan)
         #col = [row[j] for row in rowList if j < len(row)]
         #THRES = np.max([abs(obj[1]-obj[0]) for obj in col if obj])
         col_leftLimit = np.min([max(obj[0],obj[1]) for obj in col if obj])
@@ -453,7 +493,7 @@ def column_alignment(rowList):
         for obj in col:
             if not obj:
                 # reach the end of this row, add virtual objs from now on
-                rowList[i].append(None)
+                rowList[i].append(np.nan)
             else:
                 if obj[1]-col_leftLimit == 0:
                     print i,j
@@ -461,7 +501,7 @@ def column_alignment(rowList):
                 #print i,j
                 #print col_leftLimit, obj[0]
                 # add a virtual object
-                    rowList[i].insert(j,None)
+                    rowList[i].insert(j,np.nan)
             
             i = i+1
         j = j+1
@@ -471,19 +511,19 @@ def infer_missing_idx(rowIdx,colIdx):
         for j in range(len(colIdx)):
             if len(rowIdx[i])<=j:
                 #print i,j
-                rowIdx[i].append(None)
-                colIdx[j].insert(i,None)
+                rowIdx[i].append(-1)
+                colIdx[j].insert(i,-1)
             elif len(colIdx[j])<=i:
                 #print i,j
-                colIdx[j].append(None)
-                rowIdx[i].insert(j,None)
+                colIdx[j].append(-1)
+                rowIdx[i].insert(j,-1)
             elif rowIdx[i][j] != colIdx[j][i]:
                 #print i,j
-                rowIdx[i].insert(j,None)
-                colIdx[j].insert(i,None)
+                rowIdx[i].insert(j,-1)
+                colIdx[j].insert(i,-1)
     return np.array(rowIdx)
             
-def show_objs_by_dim(idxList,objList,image):
+def show_objs_by_dim(idxList,objList,image,showWin=True):
     colors = [(255,0,0),(0,255,0),(0,0,255)]
     i = 0
     for cluster in idxList:
@@ -495,17 +535,18 @@ def show_objs_by_dim(idxList,objList,image):
                  y_end = obj[3]
                  cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
         i = i+1
-    cv2.imshow("Objects grouped by one dimension",image)
-    cv2.waitKey(0)
+    if showWin:
+        cv2.imshow("Objects grouped by one dimension",image)
+        cv2.waitKey(0)
 
-def show_objs_by_matrix(idxMat,objList,image):
+def show_objs_by_matrix(idxMat,objList,image,showWin=True):
     real_color = [255,0,0]
     virtual_color = [0,0,255]
     
     h,w = idxMat.shape
     for i in range(h):
         for j in range(w):
-            if not idxMat[i,j] is None:
+            if idxMat[i,j]>0:
                 obj = objList[idxMat[i,j]]
                 x_start = obj[0]
                 x_end = obj[1]
@@ -513,16 +554,16 @@ def show_objs_by_matrix(idxMat,objList,image):
                 y_end = obj[3]
                 cv2.rectangle(image,(x_start,y_start),(x_end,y_end),real_color,2)
             else:
-                rowObjs = [objList[k] for k in idxMat[i,:] if k]
-                colObjs = [objList[k] for k in idxMat[:,j] if k]
+                rowObjs = [objList[k] for k in idxMat[i,:] if k>0]
+                colObjs = [objList[k] for k in idxMat[:,j] if k>0]
                 x_start = int(np.mean([obj[0] for obj in colObjs]))
                 x_end = int(np.mean([obj[1] for obj in colObjs]))
                 y_start = int(np.mean([obj[2] for obj in rowObjs]))
                 y_end = int(np.mean([obj[3] for obj in rowObjs]))
                 cv2.rectangle(image,(x_start,y_start),(x_end,y_end),virtual_color,2)
-        
-    cv2.imshow("infer objs",image)
-    cv2.waitKey(0)
+    if showWin:    
+        cv2.imshow("infer objs",image)
+        cv2.waitKey(0)
 
 #########################################################
 ###### obsolete function, should be removed soon ########

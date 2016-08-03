@@ -41,7 +41,7 @@ giantSplitted = util.split_giant_objs(giantList,dither_img,util.typical_obj_size
 #util.column_alignment(rowList)
 #idxMat = util.infer_missing_idx(rowIdx,colIdx)
 #print idxMat
-#util.show_objs_by_matrix(idxMat,objs,image)
-#util.show_objs_by_dim(colIdx,objs,image)
-util.show_objs(objs+giantSplitted,image)
-cv2.imwrite("output.jpeg",image)
+<<<<<<< HEAD
+util.show_objs_by_matrix(idxMat,objs,image)
+#util.show_objs_by_dim(rowIdx,objs,image)
+#util.show_objs(objs,image)
