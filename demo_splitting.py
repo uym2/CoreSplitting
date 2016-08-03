@@ -19,7 +19,7 @@ if fname == "":
 app.quit()
 
 image = cv2.imread(fname)
-cv2.imshow("img",image)
+#cv2.imshow("img",image)
 dither_img = util.naive_dithering(image)
 #cv2.imshow("Dither", dither_img)
 #cv2.waitKey(0)
@@ -38,5 +38,5 @@ colIdx = util.group2colNsort(objs)
 idxMat = util.infer_missing_idx(rowIdx,colIdx)
 #print idxMat
 util.show_objs_by_matrix(idxMat,objs,image)
-#util.show_objs_by_dim(colIdx,objs,image)
+#util.show_objs_by_dim(rowIdx,objs,image)
 #util.show_objs(objs,image)
