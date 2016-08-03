@@ -3,14 +3,20 @@ import numpy as np
 import cv2
 from scipy.ndimage import morphology, measurements
 import StepMiner
+from scipy.ndimage import measurements,morphology
+from PIL import Image
+import pylab
+
 
 DITHER_THRES = 200
 MIN_INTENSITY = 0
 MAX_INTENSITY = 255
 NOISE_TORL_RATIO = 0.01 # noise torlerance ratio: maximum proportion of the pixels in the splitting line that are noise (noises that was failed to be dithered out)
 NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
+
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
 MAX_TO_TPC = 1.5 # the maximum ratio of an obj to the "typical"
+
 
 def step_miner_thres(data):
     fit_result = StepMiner.fitStepSimple(data)
@@ -157,7 +163,9 @@ def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end,noise_torl=NOISE
 	# stop recursion
 	if h < 2 or w < 2 or np.mean(dither_img)<noise_torl:
 		return
+
 	horr_split_lines = find_split_lines(dither_img,'H',noise_torl=noise_torl)
+
 	if horr_split_lines:
 		y1 = horr_split_lines[0]
 		y2 = horr_split_lines[1]
@@ -165,7 +173,9 @@ def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end,noise_torl=NOISE
 		find_all_splits(dither_img[:y1,:],objs,x_start,x_end,y_start,y_start+y1,noise_torl)
 		find_all_splits(dither_img[y2:,:],objs,x_start,x_end,y_start+y2,y_end,noise_torl)
 	else:
+
 		ver_split_lines = find_split_lines(dither_img,'V',noise_torl=noise_torl)
+
 		if not ver_split_lines:
 			objs.append([x_start,x_end,y_start,y_end]) # add the found object
 			return
@@ -266,6 +276,7 @@ def remove_tiny_objs(objList,tpc_size=None):
     # this function removes those from the objList
     if not tpc_size:
         tpc_size = typical_obj_size(objList,'med')
+        
     tpc_area = tpc_size[0]*tpc_size[1]
     return [obj for obj in objList if obj_area(obj)/tpc_area >= MIN_TO_TPC]
 
@@ -288,6 +299,7 @@ def split_giant_objs(giantList,dither_img,tpc_size,open_win=3,iterNum=1):
     # use morphology opening to split sticky objects
     # (the reason for that they form giant objs in the first round)
     objList = []
+
     dither_img = morphology.binary_closing(dither_img, 
                                        np.ones((3,3)),iterations=iterNum )
     while giantList:
@@ -497,6 +509,7 @@ def show_objs_by_dim(idxList,objList,image,showWin=True):
                  y_end = obj[3]
                  cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
         i = i+1
+
     if showWin:
         cv2.imshow("Objects grouped by one dimension",image)
         cv2.waitKey(0)
