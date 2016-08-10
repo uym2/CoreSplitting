@@ -390,7 +390,8 @@ def clusterInOneDim(objList,dim):
         end = 1
         start_ops = 2
     
-    sIdx = np.argsort([obj[end] for obj in objList])
+    sIdx = np.argsort([obj[start] for obj in objList])
+    print sIdx
         
     # after sorting, objects in the same row (column) are clusterred together
     # traverse the sorted list to split the clusters
@@ -410,7 +411,7 @@ def clusterInOneDim(objList,dim):
                 neighbor_obj = objList[sIdx[k]]
         
         # check if this_obj belong to current row/column
-        if (neighbor_obj[end]-this_obj[start]<7):        
+        if (neighbor_obj[end]-this_obj[start]<0):        
             #add the new cluster and split 
             clusters.append([obj_idx for obj_idx in sIdx[i:j]])
             i = j
@@ -534,19 +535,18 @@ def show_objs_by_dim(idxList,objList,image,showWin=True):
                  y_start = obj[2]
                  y_end = obj[3]
                  cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
+                 if showWin:
+                    cv2.imshow("Objects grouped by one dimension",image)
+                    cv2.waitKey(100)
         i = i+1
-    if showWin:
-        cv2.imshow("Objects grouped by one dimension",image)
-        cv2.waitKey(0)
-
+                
 def show_objs_by_matrix(idxMat,objList,image,showWin=True):
     real_color = [255,0,0]
     virtual_color = [0,0,255]
-    
     h,w = idxMat.shape
     for i in range(h):
         for j in range(w):
-            if idxMat[i,j]>0:
+            if idxMat[i,j]>=0:
                 obj = objList[idxMat[i,j]]
                 x_start = obj[0]
                 x_end = obj[1]
