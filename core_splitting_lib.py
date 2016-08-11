@@ -535,10 +535,10 @@ def show_objs_by_dim(idxList,objList,image,showWin=True):
                  y_start = obj[2]
                  y_end = obj[3]
                  cv2.rectangle(image,(x_start,y_start),(x_end,y_end),colors[i%len(colors)],2)
-                 if showWin:
-                    cv2.imshow("Objects grouped by one dimension",image)
-                    cv2.waitKey(100)
         i = i+1
+    if showWin:
+        cv2.imshow("Objects grouped by one dimension",image)
+        cv2.waitKey(0)
                 
 def show_objs_by_matrix(idxMat,objList,image,showWin=True):
     real_color = [255,0,0]
