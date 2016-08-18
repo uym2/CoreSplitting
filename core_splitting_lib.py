@@ -12,12 +12,69 @@ NOISE_TORL = MAX_INTENSITY*NOISE_TORL_RATIO
 MIN_TO_TPC = 0.5 # the minimum ratio of an obj to the "typical" in an objectList
 MAX_TO_TPC = 1.5 # the maximum ratio of an obj to the "typical"
 
+def extract_cores(img):
+    #im_filled = preprocess(img)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    dither_img = naive_dithering(gray)
+    im_filled = morphology.binary_closing(dither_img, np.ones((3,3)),iterations=1)
+    objList = label_cores(im_filled)
+    objList = postprocess(objList,im_filled)
+    return objList
+
+def imfill(im_in):
+    im_floodfill = im_in.copy()
+    
+    # Mask used to flood filling.
+    # Notice the size needs to be 2 pixels than the image.
+    h, w = im_in.shape[:2]
+    mask = np.zeros((h+2, w+2), np.uint8)
+    
+    # Floodfill from point (0, 0)
+    cv2.floodFill(im_floodfill, mask, (0,0), 255);
+    
+    # Invert floodfilled image
+    im_floodfill_inv = cv2.bitwise_not(im_floodfill)
+    
+    # Combine the two images to get the foreground.
+    im_out = im_in | im_floodfill_inv
+    return im_out
+    
+def preprocess(img):
+    # standardize color channels
+    max0 = np.max(img[:,:,0])
+    max1 = np.max(img[:,:,1])
+    max2 = np.max(img[:,:,2])
+    min0 = np.min(img[:,:,0])
+    min1 = np.min(img[:,:,1])
+    min2 = np.min(img[:,:,2])
+    img[:,:,0] = np.uint8(255./(max0 - min0) * (img[:,:,0] - min0))
+    img[:,:,1] = np.uint8(255./(max1 - min1) * (img[:,:,1] - min1))
+    img[:,:,2] = np.uint8(255./(max2 - min2) * (img[:,:,2] - min2))
+    
+    # blur to remove noise
+    blur = cv2.bilateralFilter(img,3,75,75)
+
+    # convert to grayscale
+    gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+    dither = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+            cv2.THRESH_BINARY,11,2)
+    #dither = naive_dithering(gray)
+    im_close = morphology.binary_closing(dither==0, np.ones((2,2)),iterations=2)
+    
+    im_fill = imfill(np.uint8(im_close))
+    return im_fill
+
+def postprocess(objList,filled_img):
+    objList = remove_tiny_objs(objList)
+    objList = handle_giant(objList,filled_img)
+    return objList
+
 def step_miner_thres(data):
     fit_result = StepMiner.fitStepSimple(data)
     return fit_result[6]
 
-def stepminer_dithering(img):
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+def stepminer_dithering(gray_img):
+    #gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     data = np.concatenate(gray_img)
     data.sort()
     thres = int(step_miner_thres(data))
@@ -29,13 +86,13 @@ def stepminer_dithering(img):
     ret,dither_img = cv2.threshold(gray_img,thres,255,dither_type)
     return dither_img
 
-def naive_dithering(img,dither_thres=DITHER_THRES,inv=True):
+def naive_dithering(gray_img,dither_thres=DITHER_THRES,inv=True):
 	# input: an image
 	# output: a black-white image reflecting the same content
 
 	# convert to grayscale
-	output_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-	logical_idx = (output_img <= dither_thres) if inv else (output_img > dither_thres)
+	#output_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+	logical_idx = (gray_img <= dither_thres) if inv else (gray_img > dither_thres)
 	output_img = MAX_INTENSITY*logical_idx
 	return output_img			
 
@@ -78,8 +135,8 @@ def component_labeling(img):
 
     return labels
 
-def otsu_dithering(img,inv=True):
-    gray_img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+def otsu_dithering(gray_img,inv=True):
+    #gray_img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
     if inv:
         thr,binary_img = cv2.threshold(gray_img,0,255,cv2.THRESH_BINARY_INV|cv2.THRESH_OTSU)
     else:
@@ -178,12 +235,10 @@ def find_all_splits(dither_img,objs,x_start,x_end,y_start,y_end,noise_torl=NOISE
 # alternative to find_all_split
 # using connected component to label objs
 # MAD's work
-def label_cores(dither_img):
-    im_close = morphology.binary_closing(dither_img, np.ones((3,3)),iterations=1)
-    labels, nbr_objects = measurements.label(im_close)
-    #pylab.imshow(out)
-    #pylab.show()
-    #print labels.shape, nbr_objects
+def label_cores(filled_img):
+    #im_close = morphology.binary_closing(dither_img, np.ones((3,3)),iterations=1)
+    labels, nbr_objects = measurements.label(filled_img)
+    
     h, w = labels.shape
     
     labels_dict = {}
@@ -227,7 +282,6 @@ def label_cores(dither_img):
         y_start = l[3]
         y_end = l[4]
         objs.append([x_start,x_end,y_start,y_end])
-        #cv2.rectangle(img,(x_start,y_start),(x_end,y_end),(0, 0, 255),2)
     return objs
 
 # each object is located by a rectangular bounding box
@@ -294,19 +348,19 @@ def get_giant_objs(objList,tpc_size=None):
     return giantList
         
 
-def split_giant_objs(giantList,dither_img,tpc_size,open_win=3,iterNum=1):
+def split_giant_objs(giantList,filled_img,tpc_size,open_win=3,iterNum=1):
     # use morphology opening to split sticky objects
     # (the reason for that they form giant objs in the first round)
     objList = []
-    dither_img = morphology.binary_closing(dither_img, 
-                                       np.ones((3,3)),iterations=iterNum )
+    #dither_img = morphology.binary_closing(dither_img, 
+    #                                   np.ones((3,3)),iterations=iterNum )
     while giantList:
         for obj in giantList:
                 x_start = obj[0]
                 x_end = obj[1]
                 y_start = obj[2]
                 y_end = obj[3]
-                subImg = dither_img[y_start:y_end,x_start:x_end]
+                subImg = filled_img[y_start:y_end,x_start:x_end]
                 subImg = morphology.binary_opening( subImg, 
                                            np.ones((open_win,open_win)),iterations=iterNum )
                 subObjs = label_cores(subImg) # subOjbs: a list of objects in subImg
@@ -316,6 +370,8 @@ def split_giant_objs(giantList,dither_img,tpc_size,open_win=3,iterNum=1):
         objList = remove_tiny_objs(objList,tpc_size)
         giantList = get_giant_objs(objList,tpc_size)
         open_win = open_win+2
+        if open_win > tpc_size[0]:
+            break
     
     return objList                          
 
